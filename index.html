@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ozan</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">◆</span>
+          <span class="brand-name">Ozan</span>
+        </div>
+
+        <div class="search">
+          <input id="search" class="input" type="search" placeholder="Ses ara…  (Ctrl+F)" autocomplete="off" spellcheck="false" />
+        </div>
+
+        <div class="ctl volume" title="Genel ses seviyesi">
+          <span class="ctl-label">Ses</span>
+          <input id="volume" type="range" min="0" max="100" step="1" />
+          <span id="volume-val" class="ctl-val">80%</span>
+        </div>
+
+        <div class="ctl mic" title="Aktif mikrofon">
+          <span id="mic-light" class="light light-off" title="Mikrofon kapalı"></span>
+          <select id="mic-select" class="select"></select>
+          <span id="apo-mode-badge" class="apo-pill apo-pill-ok" title="Mikrofon enjeksiyon modu">APO</span>
+          <button id="apo-repair-top" class="btn btn-primary small hidden" title="APO kaydını ve ozan-apo.dll bütünlüğünü tek tıkla onar">Onar</button>
+        </div>
+
+        <label class="ctl switch" title="Açıkken sesler mikrofona/yayına gönderilmez, yalnızca kulaklığınızda çalar">
+          <input id="local-preview" type="checkbox" />
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+          <span class="ctl-label">Yayını Sustur / Lokal Önizleme</span>
+        </label>
+
+        <button id="stop-all" class="btn btn-ghost" title="Çalan tüm sesleri anında durdur (Panic)">
+          ■ Durdur <span id="panic-badge" class="key-pill">End</span>
+        </button>
+        <button id="settings-btn" class="btn btn-ghost icon-btn" title="Ayarlar">⚙</button>
+      </header>
+
+      <div class="body">
+        <aside class="sidebar">
+          <nav id="nav-all"></nav>
+          <div class="sidebar-head">
+            <span>Klasörler</span>
+            <button id="new-folder" class="btn btn-ghost icon-btn small" title="Yeni klasör">＋</button>
+          </div>
+          <nav id="folders" class="folders"></nav>
+          <div class="sidebar-foot">
+            <p class="hint">Ses dosyalarını (.opus .mp3 .wav .ogg .flac) pencereye sürükleyip bırakın.</p>
+          </div>
+        </aside>
+
+        <main class="content">
+          <div class="content-head">
+            <h1 id="view-title">Tüm Sesler</h1>
+            <span id="view-count" class="muted"></span>
+            <span id="active-voices-badge" class="voice-counter hidden">0 / 5 aktif</span>
+          </div>
+          <div id="grid" class="grid"></div>
+          <div id="empty" class="empty hidden"></div>
+        </main>
+      </div>
+
+      <div id="selection-bar" class="selection-bar hidden">
+        <span id="sel-count"></span>
+        <div class="sel-actions">
+          <div class="dropdown">
+            <button id="sel-add" class="btn btn-primary">Klasöre ekle ▾</button>
+            <div id="sel-add-menu" class="dropdown-menu hidden"></div>
+          </div>
+          <button id="sel-remove" class="btn btn-ghost">Klasörden çıkar</button>
+          <button id="sel-delete" class="btn btn-danger">Sil</button>
+          <button id="sel-clear" class="btn btn-ghost">İptal</button>
+        </div>
+      </div>
+
+      <div id="settings-panel" class="popover hidden">
+        <div class="popover-section">
+          <h3>Doğrudan Mikrofon APO &amp; Kendini Onarma</h3>
+          <div class="apo-status-card">
+            <div class="field-row">
+              <span class="small muted">Çalışma Modu:</span>
+              <span id="apo-status-mode" class="apo-pill apo-pill-ok">Denetleniyor…</span>
+            </div>
+            <div class="field-row">
+              <span class="small muted">SHA-256 Bütünlük:</span>
+              <span id="apo-status-sha" class="small">—</span>
+            </div>
+            <div class="field-row">
+              <span class="small muted">FxProperties Zinciri:</span>
+              <span id="apo-status-chain" class="small">—</span>
+            </div>
+            <div class="field-row">
+              <span class="small muted">Örnekleme &amp; IPC:</span>
+              <span id="apo-status-format" class="small">—</span>
+            </div>
+            <p id="apo-status-detail" class="hint"></p>
+            <div class="field-row">
+              <button id="apo-repair-btn" class="btn btn-primary small">Tek Tıkla Otomatik Onar</button>
+              <button id="apo-check-btn" class="btn btn-ghost small">Bütünlüğü Denetle</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="popover-section">
+          <h3>Ses ve Mikrofon</h3>
+          <label class="field">
+            <span>Kulaklık (lokal dinleme) çıkışı</span>
+            <select id="monitor-select" class="select"></select>
+          </label>
+          <label class="field">
+            <span>Fallback doğrudan çıkış (isteğe bağlı ikincil çıkış)</span>
+            <select id="broadcast-select" class="select"></select>
+          </label>
+          <label class="check-row">
+            <input id="mute-mic-on-play" type="checkbox" />
+            <span>Ses efekti çalarken fiziksel mikrofonu geçici olarak sustur</span>
+          </label>
+        </div>
+
+        <div class="popover-section">
+          <h3>Bas-Konuş (Push-to-Talk)</h3>
+          <label class="check-row">
+            <input id="ptt-enabled" type="checkbox" />
+            <span>Ses çaldığı sürece Bas-Konuş tuşuna arka planda basılı tut (SendInput)</span>
+          </label>
+          <div class="field-row">
+            <span class="small muted">Bas-Konuş Tuşu:</span>
+            <div class="hotkey-ctl">
+              <button id="ptt-key-btn" class="btn btn-ghost small">Atanmadı</button>
+              <button id="ptt-key-clear" class="btn btn-ghost small" title="Temizle">✕</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="popover-section">
+          <h3>Acil Durdurma (Panic Tuşu)</h3>
+          <div class="field-row">
+            <span class="small muted">Tüm sesleri durdur:</span>
+            <div class="hotkey-ctl">
+              <button id="panic-key-btn" class="btn btn-ghost small">End</button>
+              <button id="panic-key-reset" class="btn btn-ghost small" title="Varsayılan (End) yap">Varsayılan</button>
+            </div>
+          </div>
+          <label class="check-row">
+            <input id="panic-passthrough" type="checkbox" checked />
+            <span>Panic tuş basımını aktif oyuna/uygulamaya ilet (Passthrough)</span>
+          </label>
+        </div>
+
+        <div class="popover-section">
+          <h3>İçe Aktarma &amp; Kütüphane</h3>
+          <div class="field-row">
+            <span id="normalize-pref" class="muted small"></span>
+            <button id="normalize-reset" class="btn btn-ghost small">Sıfırla</button>
+          </div>
+          <div class="field-row">
+            <button id="open-folder" class="btn btn-ghost small">Ses klasörünü aç</button>
+            <button id="refresh-devices" class="btn btn-ghost small">Cihazları yenile</button>
+          </div>
+        </div>
+
+        <div class="popover-section">
+          <h3>Profil Yedekle / Geri Yükle</h3>
+          <p class="hint">Tüm ses dosyalarını, klasör ilişkilerini ve kısayol yapılandırmalarını tek bir .zip arşivi olarak yedekleyin veya geri yükleyin.</p>
+          <div class="field-row">
+            <button id="backup-export" class="btn btn-primary small">Profili Yedekle (.zip)</button>
+            <button id="backup-import" class="btn btn-ghost small">Yedeği Geri Yükle (.zip)</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="drop-overlay" class="drop-overlay hidden">
+        <div class="drop-box">
+          <div class="drop-icon">⇩</div>
+          <div>Sesleri kütüphaneye eklemek için bırakın</div>
+          <div class="muted small">.opus · .mp3 · .wav · .ogg · .flac</div>
+        </div>
+      </div>
+
+      <div id="progress" class="progress hidden">
+        <div class="progress-text"></div>
+        <div class="progress-bar"><div class="progress-fill"></div></div>
+      </div>
+
+      <div id="modal-root"></div>
+      <div id="toasts" class="toasts"></div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

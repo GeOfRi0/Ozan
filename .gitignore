@@ -1,0 +1,39 @@
+# Rust / Cargo / Tauri derleme çıktıları
+/target/
+/src-tauri/target/
+**/target/
+**/*.rs.bk
+*.pdb
+*.exp
+*.lib
+/ozan.exe
+/ozan-apo.dll
+
+# Node.js ve Ön Yüz (Vite / TypeScript) çıktıları
+/node_modules/
+/dist/
+/dist-ssr/
+/dist-artifacts/
+/dist-signed/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Bilgi grafiği ve geçici test dizinleri
+/graphify-out/
+/test-appdata/
+
+# İşletim sistemi ve IDE dosyaları
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Yerel ortam değişkenleri
+.env
+.env.local
+.env.*.local

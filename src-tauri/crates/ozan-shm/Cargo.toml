@@ -1,0 +1,16 @@
+[package]
+name = "ozan-shm"
+version = "0.1.0"
+edition = "2021"
+description = "Ozan Paylaşımlı Bellek (Named Shared Memory) ve Kilitsiz SPSC Halka Tampon Protokolü"
+
+[lib]
+name = "ozan_shm"
+path = "src/lib.rs"
+
+[dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_Memory",
+    "Win32_Security",
+] }

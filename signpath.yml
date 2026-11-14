@@ -1,0 +1,14 @@
+# SignPath.io Açık Kaynak Kod İmzalama Yapılandırması (Artifact Configuration)
+# Bu yapılandırma GitHub Actions tarafından üretilen arşiv içindeki
+# ozan.exe ve ozan-apo.dll dosyalarının ayrı ayrı Authenticode ile imzalanmasını tanımlar.
+
+artifact-configuration-version: 1
+
+zip-file:
+  include:
+    - path: "ozan.exe"
+      signing-scheme: "authenticode"
+    - path: "ozan-apo.dll"
+      signing-scheme: "authenticode"
+    - path: "SHA256SUMS.txt"
+      signing-scheme: "none"

@@ -1,0 +1,11 @@
+# GitHub Linguist dil istatistikleri yapılandırması
+# Üretilen dosyaların, şemaların ve derleme çıktılarının Rust dil oranını ezmesini engeller.
+graphify-out/** linguist-generated=true
+dist/** linguist-generated=true
+dist-artifacts/** linguist-generated=true
+src-tauri/gen/** linguist-generated=true
+*.html linguist-generated=true
+*.lock linguist-generated=true
+*.json linguist-generated=true
+*.rs linguist-detectable=true
+*.ts linguist-detectable=true

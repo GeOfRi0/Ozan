@@ -1,0 +1,70 @@
+[workspace]
+members = [
+    ".",
+    "crates/rubato",
+    "crates/ozan-shm",
+    "crates/ozan-apo",
+]
+resolver = "2"
+
+[package]
+name = "ozan"
+version = "0.1.0"
+description = "Ozan - hafif soundboard"
+authors = ["Ozan"]
+edition = "2021"
+rust-version = "1.77"
+
+[[bin]]
+name = "ozan"
+path = "src/main.rs"
+
+[lib]
+name = "ozan_lib"
+crate-type = ["rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-single-instance = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cpal = "0.15"
+rtrb = "0.3"
+rubato = { path = "crates/rubato" }
+ozan-shm = { path = "crates/ozan-shm" }
+ozan-apo = { path = "crates/ozan-apo" }
+sha2 = "0.10"
+hex = "0.4"
+symphonia = { version = "0.5", default-features = false, features = ["mp3", "wav", "pcm", "adpcm", "ogg", "vorbis", "flac"] }
+opus-pure = "0.2"
+log = "0.4"
+crc32fast = "1.5"
+flate2 = "1.1"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_System_Com",
+    "Win32_System_Registry",
+    "Win32_System_Memory",
+    "Win32_Security",
+    "Win32_Media_Audio",
+    "Win32_UI_Shell_PropertiesSystem",
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_UI_Controls_Dialogs",
+] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+strip = true
+panic = "unwind"
+
+[profile.dev.package."*"]
+opt-level = 2

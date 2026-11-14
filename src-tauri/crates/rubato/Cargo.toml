@@ -1,0 +1,10 @@
+[package]
+name = "rubato"
+version = "0.16.1"
+edition = "2021"
+description = "Real-time sample rate conversion (resampling) library for audio"
+license = "MIT"
+
+[lib]
+name = "rubato"
+path = "src/lib.rs"
