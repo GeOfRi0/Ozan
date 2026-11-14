@@ -122,8 +122,25 @@ pub fn run() {
     let app = match app {
         Ok(a) => a,
         Err(e) => {
-            eprintln!("Ozan başlatılamadı: {e}");
-            let msg = format!("Ozan baslatilamadi:\n\n{e}); let wm: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect(); let wt: Vec<u16> = Ozan - Hata.encode_utf16().chain(std::iter::once(0)).collect(); unsafe { windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(std::ptr::null_mut(), wm.as_ptr(), wt.as_ptr(), 0x10); } std::process::exit(1);
+            let msg = format!("Ozan başlatılamadı:\n\n{e}");
+            eprintln!("{msg}");
+            #[cfg(windows)]
+            {
+                let wm: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
+                let wt: Vec<u16> = "Ozan - Başlatma Hatası"
+                    .encode_utf16()
+                    .chain(std::iter::once(0))
+                    .collect();
+                unsafe {
+                    windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+                        std::ptr::null_mut(),
+                        wm.as_ptr(),
+                        wt.as_ptr(),
+                        0x10,
+                    );
+                }
+            }
+            std::process::exit(1);
         }
     };
 
@@ -430,4 +447,3 @@ mod tests {
         assert_eq!(decoded_frames, 960, "20ms @ 48kHz = 960 stereo kare olmalı");
     }
 }
-
