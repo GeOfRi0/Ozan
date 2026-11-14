@@ -55,6 +55,21 @@ jobs:
           "$exeHash  ozan.exe`n$dllHash  ozan-apo.dll" | Set-Content -Path "dist-artifacts/SHA256SUMS.txt" -Encoding UTF8
           Get-ChildItem "dist-artifacts"
 
+      - name: Smoke Test (Launch Check on Windows Runner)
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist-artifacts/ozan.exe" -PassThru
+          Start-Sleep -Seconds 5
+          if ($p.HasExited) {
+            Write-Error "ozan.exe erken kapandi! Cikis kodu: $($p.ExitCode)"
+            Get-WinEvent -LogName Application -MaxEvents 10 -ErrorAction SilentlyContinue |
+              Where-Object { $_.Message -like "*ozan*" -or $_.Message -like "*WebView2*" } |
+              Format-List TimeCreated, Id, Message
+            exit 1
+          }
+          Write-Host "Smoke Test BASARILI: ozan.exe 5 saniye boyunca sorunsuz calisti."
+          Stop-Process -Id $p.Id -Force
+
       - name: Upload Unsigned Release Artifacts (ozan.exe & ozan-apo.dll)
         uses: actions/upload-artifact@v4
         with:
