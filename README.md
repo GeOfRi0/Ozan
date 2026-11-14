@@ -1,79 +1,81 @@
-# Ozan — Ultra Hafif Windows Soundboard & Doğrudan Mikrofon APO Enjektörü
+# Ozan Soundboard — Ultra-Lightweight Windows Soundboard & Direct Microphone APO Injector
 
-**Ozan** (`ozan.exe` + `ozan-apo.dll`), harici sanal ses sürücüsü (VB-Cable vb.) kurulumuna ihtiyaç duymadan doğrudan aktif fiziksel mikrofona gerçek zamanlı ses enjekte eden, Rust ve Tauri v2 ile geliştirilmiş yüksek performanslı bir Windows ses paneli (soundboard) uygulamasıdır.
+**Ozan Soundboard** (`ozan.exe` + `ozan-apo.dll`) is a high-performance Windows desktop soundboard built with **Rust** and **Tauri v2** that injects real-time audio directly into your active physical microphone without requiring third-party virtual audio drivers (such as VB-Cable).
 
-Arka planda (System Tray) çalışırken **< 25 MB RAM (~3 MB Private)** ve **%0–1 altı CPU** tüketimi hedefler.
+When minimized to the System Tray, the application is engineered to consume **< 25 MB RAM (~3 MB Private)** and **< 1% CPU**.
 
 ---
 
-## Temel Teknik Özellikler
+## Core Technical Features
 
 ### 1. Windows User-Mode APO (`ozan-apo.dll`) & APO Chaining
-- **Sürücüsüz Doğrudan Mikrofon Enjeksiyonu**: Saf Rust ile yazılmış `ozan-apo.dll` (`CLSID: {8A4E7B21-6C3D-4F92-B8E1-5D2A9F0C4E73}`) bileşeni, Windows Ses Motoru (`audiodg.exe`) içinde User-Mode Audio Processing Object (`IAudioProcessingObject`, `IAudioProcessingObjectRT`, `IAudioProcessingObjectConfiguration`, `IAudioSystemEffects`, `IAudioSystemEffects2`) olarak çalışır.
-- **Üretici Efektlerini Koruyan APO Chaining**: Aktif mikrofonun Windows Kayıt Defteri (`FxProperties`) altındaki mevcut üretici ses efektleri (gürültü engelleme, beamforming, AGC, EQ vb.) **silinmez**. Orijinal CLSID değerleri yedeklenir, `ozan-apo.dll` efekt zincirine eklenir ve ses verisi işlendikten sonra orijinal APO zincirine iletilir.
+- **Driverless Direct Microphone Injection**: Written in pure Rust, `ozan-apo.dll` (`CLSID: {8A4E7B21-6C3D-4F92-B8E1-5D2A9F0C4E73}`) operates inside the Windows Audio Engine (`audiodg.exe`) as a User-Mode Audio Processing Object implementing `IAudioProcessingObject`, `IAudioProcessingObjectRT`, `IAudioProcessingObjectConfiguration`, `IAudioSystemEffects`, and `IAudioSystemEffects2`.
+- **Non-Destructive APO Chaining**: Existing manufacturer audio effects under the active microphone's Windows Registry (`FxProperties`) key (noise suppression, beamforming, AGC, EQ, etc.) are **preserved**. Original CLSID entries are backed up, `ozan-apo.dll` is prepended to the effect chain, and processed audio buffers are forwarded downstream to the original APO chain.
 
-### 2. Kilitsiz Paylaşımlı Bellek (IPC) & Gerçek Zamanlı Ses İşleme
-- **Named Shared Memory & Lock-Free SPSC Ring Buffer**: `ozan.exe` ile `audiodg.exe` içindeki `ozan-apo.dll` arasında `Global\OzanAudioSharedMem_v1` (`Local\OzanAudioSharedMem_v1` yedekli) paylaşımlı belleği ve 64 bayt önbellek satırı hizalı (`#[repr(C, align(64))]`) kilitsiz SPSC halka tampon üzerinden ses verisi aktarılır.
-- **Sıfır Bellek Ayırma / Sıfır Kilit (`APOProcess`)**: Gerçek zamanlı ses işleme döngüsü (`APOProcess`) içinde kesinlikle heap bellek ayırma (`Box`, `Vec`, `String`), kilit (`Mutex`) veya disk/kayıt defteri okuma işlemi yapılmaz.
-- **`rubato` ile Gerçek Zamanlı Yeniden Örnekleme ve Kanal Eşitleme**: Farklı mikrofon örnekleme hızları (`44.1 kHz`, `48 kHz`, `96 kHz`, **Bluetooth `16 kHz` Mono** vb.) için `rubato` kütüphanesinin sıfır bellek ayırmalı `process_into_buffer` arayüzüyle gerçek zamanlı yeniden örnekleme ve Stereo/Mono kanal eşitlemesi uygulanır.
-- **`IMMNotificationClient` Tak-Çıkar (Hotplug) Algılama**: USB veya Bluetooth mikrofonların takılıp çıkarılması ve varsayılan mikrofon değişimleri Windows Core Audio `IMMNotificationClient` arayüzüyle anında algılanır ve yeni cihaza otomatik bağlanılır.
+### 2. Lock-Free Shared Memory (IPC) & Real-Time Audio Processing
+- **Named Shared Memory & Lock-Free SPSC Ring Buffer**: Audio frames are transferred between `ozan.exe` and `ozan-apo.dll` inside `audiodg.exe` via Named Shared Memory (`Global\OzanAudioSharedMem_v1` with `Local\OzanAudioSharedMem_v1` fallback) backed by a 64-byte cache-line aligned (`#[repr(C, align(64))]`) lock-free Single-Producer Single-Consumer (SPSC) ring buffer.
+- **Zero-Allocation / Lock-Free Real-Time Thread (`APOProcess`)**: The real-time `APOProcess` callback performs zero heap allocations (`Box`, `Vec`, `String`), zero mutex locks, and zero disk or registry I/O.
+- **Real-Time Resampling & Channel Matching via `rubato`**: Dynamically adapts to varying hardware sample rates (`44.1 kHz`, `48 kHz`, `96 kHz`, **Bluetooth `16 kHz` Mono**, etc.) using `rubato`'s allocation-free `process_into_buffer` interface alongside automatic Stereo/Mono channel routing.
+- **Hardware Hotplug Detection (`IMMNotificationClient`)**: USB and Bluetooth microphone connections, disconnections, and default communication device changes are detected instantaneously via the Windows Core Audio `IMMNotificationClient` interface.
 
-### 3. Diskten Akış (Streaming Decoder) ve Çoklu Format Desteği
-- **`.opus`, `.mp3`, `.wav`, `.ogg`, `.flac` Desteği**: Sürükle-bırak ile eklenen tüm ses dosyaları `%APPDATA%\Ozan\sounds\` dizinine kopyalanır ve isteğe bağlı olarak `-1 dBFS` tepe seviyesine normalize edilir.
-- **Toplu RAM Yüklemesi Yok**: Ses dosyaları belleğe topluca yüklenmez; oynatma sırasında ayrı bir `ozan-decoder` iş parçacığı tarafından diskten küçük parçalar halinde okunur. Süre üst sınırı yoktur.
-- **5 Eşzamanlı Ses & FIFO Hard-Cut**: Aynı anda en fazla 5 ses ducking uygulanmadan çalabilir; 6. ses tetiklendiğinde en eski başlatılan ses anında kesilir (`FIFO hard-cut`). Her kart için **"Baştan Başlat"** veya **"Üst Üste Bindir"** tekrar modu seçilebilir.
+### 3. Disk-Streaming Decoder & Multi-Format Support
+- **`.opus`, `.mp3`, `.wav`, `.ogg`, and `.flac` Support**: Audio files added via drag-and-drop are copied to `%APPDATA%\Ozan\sounds\` and optionally peak-normalized to `-1 dBFS`.
+- **Zero Bulk RAM Preloading**: Audio assets are never loaded entirely into memory; a dedicated `ozan-decoder` worker thread streams and decodes small chunks directly from disk during playback, allowing arbitrary track durations.
+- **5-Channel Polyphony & FIFO Hard-Cut**: Up to 5 audio tracks can play concurrently without ducking. Triggering a 6th track immediately terminates the oldest active stream (`FIFO hard-cut`). Each sound card supports per-item **Restart** or **Overlap** trigger modes.
 
-### 4. Self-Healing (Kendini Onarma) ve Fallback (Doğrudan Çıkış) Modu
-- **SHA-256 ve `FxProperties` Denetimi**: Her açılışta `ozan-apo.dll` dosyasının SHA-256 bütünlüğü, COM kaydı ve Windows Kayıt Defteri `FxProperties` APO zinciri otomatik olarak denetlenir.
-- **Tek Tıkla Otomatik Onarım**: Windows güncellemesi veya dış müdahale ile kayıtlar sıfırlanmışsa arayüzden tek tıkla otomatik onarım sunulur.
-- **Çökmeyen Fallback Modu**: Güvenlik yazılımı (EDR/Antivirüs) veya sistem politikası DLL yüklenmesini engellerse uygulama kesinlikle çökmez veya kilitlenmez; otomatik olarak **"Fallback (Doğrudan Çıkış)"** moduna geçer ve durumu arayüzde bildirir.
+### 4. Self-Healing & Fallback Mode
+- **SHA-256 & `FxProperties` Integrity Verification**: On every startup, the application verifies the SHA-256 checksum of `ozan-apo.dll`, its COM registration, and the Windows Registry `FxProperties` APO chain.
+- **One-Click Automated Repair**: If a Windows feature update or external utility resets audio endpoint registry keys, the interface provides one-click restoration.
+- **Crash-Free Fallback Mode**: If endpoint security software (EDR/Antivirus) or system policy blocks DLL injection into `audiodg.exe`, the application never hangs or crashes; it automatically transitions into **Fallback (Direct Output) Mode** and notifies the user in the UI.
 
-### 5. Kısayol Yakalama, Kırpma, Bas-Konuş ve Yedekleme
-- **Sınırsız Fare / MMO ve Klavye Kısayolları**: `WH_KEYBOARD_LL`, `WH_MOUSE_LL` ve Windows Raw Input / HID (`WM_INPUT`) ile klavye tuşları, `XBUTTON1`/`XBUTTON2` ve çok tuşlu MMO farelerinin tüm ek tuşları yakalanır; her kısayol için **Passthrough** seçeneği ve varsayılan **`End` (`VK_END`) Panic** tuşu bulunur.
-- **Ses Kırpma Modülü**: Her ses kartı için dalga formu üzerinde başlangıç/bitiş seçimi, **"1 Kerelik Çal"** ve **"Kırpılmış Şekilde Kaydet"** özellikleri mevcuttur.
-- **Bas-Konuş (Push-to-Talk) & Fiziksel Mikrofon Susturma**: Ses çaldığı sürece arka planda `SendInput` ile Bas-Konuş tuşuna basılı tutma ve efekt süresince fiziksel mikrofonu geçici olarak susturma seçenekleri yer alır.
-- **Profil Yedekle / Geri Yükle (`.zip`)**: Tüm ses dosyaları, klasör ilişkileri ve kısayol ayarları tek bir `.zip` arşivi olarak dışa/içe aktarılabilir.
+### 5. Global Hotkey Capture, Audio Trimming, Push-to-Talk & Backup
+- **Unrestricted Mouse / MMO & Keyboard Hotkeys**: Captures standard keyboard keys, `XBUTTON1`/`XBUTTON2`, and extended multi-button MMO mouse inputs via `WH_KEYBOARD_LL`, `WH_MOUSE_LL`, and Windows Raw Input / HID (`WM_INPUT`). Includes per-hotkey **Passthrough** toggles and a global **`End` (`VK_END`) Panic** key.
+- **Non-Destructive & Permanent Audio Trimming**: Interactive waveform range selection supporting both **Play Once (Preview Trim)** and **Save Trimmed Copy**.
+- **Push-to-Talk Automation & Mic Auto-Mute**: Automatically holds a configured Push-to-Talk key via `SendInput` during soundboard playback, with an optional toggle to temporarily mute physical microphone voice input while clips play.
+- **Profile Backup & Restore (`.zip`)**: Exports and imports all audio files, folder mappings, and hotkey configurations as a single portable `.zip` archive.
 
 ---
 
-## Kurulum ve Derleme Adımları
+## Building from Source
 
-### Gereksinimler
-- **İşletim Sistemi**: Windows 10 / 11 (x64)
+### Prerequisites
+- **Operating System**: Windows 10 / 11 (x64)
 - **Rust**: `1.77+` (`x86_64-pc-windows-msvc`)
-- **C++ Derleme Araçları**: MSVC Build Tools + Windows 10/11 SDK
+- **C++ Build Tools**: MSVC Build Tools + Windows 10/11 SDK
 - **Node.js**: `20+`
 
-### Geliştirme ve Release Derlemesi
+### Release Build Steps
 
-1. Bağımlılıkları yükleyin ve ön yüzü derleyin:
+1. Install frontend dependencies and build the UI bundle:
    ```powershell
    npm install
    npm run build
    ```
 
-2. Rust çalışma alanını (`ozan.exe` ve `ozan-apo.dll`) release modunda derleyin:
+2. Build the Rust workspace (`ozan.exe` and `ozan-apo.dll`) in release mode:
    ```powershell
    cd src-tauri
    cargo build --release --workspace
    Copy-Item -Force "target/release/ozan_apo.dll" "target/release/ozan-apo.dll"
    ```
 
-3. Tauri CLI ile uygulama paketini oluşturun:
+3. Package the application using the Tauri CLI:
    ```powershell
    npx tauri build
    ```
 
-4. Derleme çıktıları:
-   - Ana Uygulama: `src-tauri/target/release/ozan.exe`
-   - User-Mode APO Eklentisi: `src-tauri/target/release/ozan-apo.dll`
+4. Build Artifacts:
+   - Main Executable: `src-tauri/target/release/ozan.exe`
+   - User-Mode APO Library: `src-tauri/target/release/ozan-apo.dll`
 
 ---
 
-## SignPath.io Kod İmzalama Süreci
+## Code Signing Policy
 
-Bu proje, GitHub Actions ([.github/workflows/release.yml](.github/workflows/release.yml)) ve [signpath.yml](signpath.yml) yapılandırması ile **SignPath.io** açık kaynak kod imzalama sürecine uyumludur. `v*` etiketli sürümlerde `ozan.exe` ve `ozan-apo.dll` temiz ve ayrı olarak derlenir, SHA-256 özetleri üretilir ve Authenticode imzalaması için SignPath.io'ya iletilir.
+Free code signing is provided by [SignPath.io](https://about.signpath.io/), using a certificate by the [SignPath Foundation](https://signpath.org/).
 
-## Lisans
+Releases tagged with `v*` are built reproducibly via GitHub Actions ([.github/workflows/release.yml](.github/workflows/release.yml)) according to [signpath.yml](signpath.yml), generating verifiable SHA-256 checksums for `ozan.exe` and `ozan-apo.dll`.
 
-Bu proje [MIT Lisansı](LICENSE) altında lisanslanmıştır.
+## License
+
+This project is licensed under the [MIT License](LICENSE).
