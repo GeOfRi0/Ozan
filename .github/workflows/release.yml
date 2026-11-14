@@ -1,0 +1,79 @@
+name: Release & SignPath.io Code Signing
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build ozan.exe & ozan-apo.dll (Windows Release)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Setup Rust Toolchain (MSVC x64)
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install Frontend Dependencies & Build UI
+        run: |
+          npm ci
+          npm run build
+
+      - name: Build Workspace in Release Mode (cargo build --release)
+        working-directory: src-tauri
+        run: |
+          cargo build --release --workspace
+          Copy-Item -Force "target/release/ozan_apo.dll" "target/release/ozan-apo.dll"
+
+      - name: Build Tauri Release Application (tauri build)
+        run: |
+          npx tauri build --no-bundle
+          Copy-Item -Force "src-tauri/target/release/ozan_apo.dll" "src-tauri/target/release/ozan-apo.dll"
+
+      - name: Prepare Clean Artifact Directory (ozan.exe & ozan-apo.dll)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist-artifacts" | Out-Null
+          Copy-Item -Force "src-tauri/target/release/ozan.exe" "dist-artifacts/ozan.exe"
+          Copy-Item -Force "src-tauri/target/release/ozan-apo.dll" "dist-artifacts/ozan-apo.dll"
+          $exeHash = (Get-FileHash -Algorithm SHA256 "dist-artifacts/ozan.exe").Hash.ToLower()
+          $dllHash = (Get-FileHash -Algorithm SHA256 "dist-artifacts/ozan-apo.dll").Hash.ToLower()
+          "$exeHash  ozan.exe`n$dllHash  ozan-apo.dll" | Set-Content -Path "dist-artifacts/SHA256SUMS.txt" -Encoding UTF8
+          Get-ChildItem "dist-artifacts"
+
+      - name: Upload Unsigned Release Artifacts (ozan.exe & ozan-apo.dll)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ozan-unsigned-release
+          path: |
+            dist-artifacts/ozan.exe
+            dist-artifacts/ozan-apo.dll
+            dist-artifacts/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Submit Signing Request to SignPath.io
+        if: github.ref_type == 'tag' && vars.SIGNPATH_ORGANIZATION_ID != ''
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: "ozan"
+          signing-policy-slug: "release-signing"
+          artifact-configuration-slug: "ozan-pe-binaries"
+          github-artifact-id: "ozan-unsigned-release"
+          wait-for-completion: true
+          output-artifact-directory: "dist-signed"
