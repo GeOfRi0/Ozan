@@ -65,19 +65,10 @@ fn install_panic_hook() {
             .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
             .unwrap_or_else(|| "konum bilinmiyor".to_string());
         let bt = std::backtrace::Backtrace::force_capture();
-        let msg = format!("Ozan kritik hata (panic):
-
-Konum: {location}
-Mesaj: {payload}
-
-Backtrace:
-{bt}");
+        let msg = format!("Ozan kritik hata (panic):\n\nKonum: {location}\nMesaj: {payload}\n\nBacktrace:\n{bt}");
         eprintln!("{msg}");
         log_fatal("ozan-panic.log", &msg);
-        let short_msg = format!("Ozan beklenmeyen bir hatayla karşılaştı:
-
-Konum: {location}
-Mesaj: {payload}");
+        let short_msg = format!("Ozan beklenmeyen bir hatayla karşılaştı:\n\nKonum: {location}\nMesaj: {payload}");
         show_error_dialog("Ozan - Kritik Hata", &short_msg);
     }));
 }
@@ -97,6 +88,7 @@ pub fn show_main_window(app: &AppHandle) {
         .inner_size(1160.0, 760.0)
         .min_inner_size(820.0, 540.0)
         .center()
+        .disable_drag_drop_handler()
         .theme(Some(tauri::Theme::Dark))
         .background_color(tauri::window::Color(15, 16, 20, 255));
     let built = match app.default_window_icon() {
@@ -107,9 +99,7 @@ pub fn show_main_window(app: &AppHandle) {
         None => builder.build(),
     };
     if let Err(e) = built {
-        let msg = format!("Ozan ana penceresi oluşturulamadı:
-
-{e}");
+        let msg = format!("Ozan ana penceresi oluşturulamadı:\n\n{e}");
         log::error!("{msg}");
         log_fatal("ozan-startup-error.log", &msg);
         show_error_dialog("Ozan - Pencere Hatası", &msg);
@@ -192,9 +182,7 @@ pub fn run() {
     let app = match app {
         Ok(a) => a,
         Err(e) => {
-            let msg = format!("Ozan başlatılamadı:
-
-{e}");
+            let msg = format!("Ozan başlatılamadı:\n\n{e}");
             eprintln!("{msg}");
             log_fatal("ozan-startup-error.log", &msg);
             show_error_dialog("Ozan - Başlatma Hatası", &msg);
