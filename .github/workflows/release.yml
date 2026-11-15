@@ -58,10 +58,18 @@ jobs:
       - name: Smoke Test (Launch Check on Windows Runner)
         shell: pwsh
         run: |
+          $env:RUST_BACKTRACE = "1"
+          Remove-Item -Force "ozan-panic.log", "ozan-startup-error.log" -ErrorAction SilentlyContinue
           $p = Start-Process -FilePath "dist-artifacts/ozan.exe" -PassThru
           Start-Sleep -Seconds 5
           if ($p.HasExited) {
-            Write-Error "ozan.exe erken kapandi! Cikis kodu: $($p.ExitCode)"
+            Write-Host "=== OZAN ERKEN KAPANDI (Cikis Kodu: $($p.ExitCode)) ===" -ForegroundColor Red
+            foreach ($logFile in @("ozan-panic.log", "ozan-startup-error.log", "$env:TEMP/ozan-panic.log", "$env:TEMP/ozan-startup-error.log")) {
+              if (Test-Path $logFile) {
+                Write-Host "--- $logFile ---" -ForegroundColor Yellow
+                Get-Content $logFile
+              }
+            }
             Get-WinEvent -LogName Application -MaxEvents 10 -ErrorAction SilentlyContinue |
               Where-Object { $_.Message -like "*ozan*" -or $_.Message -like "*WebView2*" } |
               Format-List TimeCreated, Id, Message
