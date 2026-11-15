@@ -108,6 +108,14 @@ pub fn show_main_window(app: &AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(windows)]
+    unsafe {
+        let _ = windows_sys::Win32::System::Com::CoInitializeEx(
+            std::ptr::null(),
+            windows_sys::Win32::System::Com::COINIT_APARTMENTTHREADED as u32,
+        );
+    }
+
     install_panic_hook();
 
     let app = tauri::Builder::default()
