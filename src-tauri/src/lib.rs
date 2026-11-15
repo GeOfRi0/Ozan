@@ -9,6 +9,7 @@ mod library;
 mod tray;
 mod trimmer;
 
+use std::io::Write;
 use std::sync::Mutex;
 
 use tauri::{AppHandle, Manager, RunEvent, WebviewUrl, WebviewWindowBuilder};
@@ -18,6 +19,68 @@ use commands::AppState;
 use library::Library;
 
 pub const MAIN_WINDOW: &str = "main";
+
+#[cfg(windows)]
+fn show_error_dialog(title: &str, msg: &str) {
+    // CI ortamında (GitHub Actions vb.) modal pencere açıp süreci kilitleme.
+    if std::env::var_os("CI").is_some() || std::env::var_os("GITHUB_ACTIONS").is_some() {
+        return;
+    }
+    let wm: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
+    let wt: Vec<u16> = title.encode_utf16().chain(std::iter::once(0)).collect();
+    unsafe {
+        windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
+            std::ptr::null_mut(),
+            wm.as_ptr(),
+            wt.as_ptr(),
+            0x10,
+        );
+    }
+}
+
+#[cfg(not(windows))]
+fn show_error_dialog(_title: &str, _msg: &str) {}
+
+fn log_fatal(filename: &str, text: &str) {
+    if let Ok(mut f) = std::fs::File::create(filename) {
+        let _ = writeln!(f, "{text}");
+    }
+    let temp_path = std::env::temp_dir().join(filename);
+    if let Ok(mut f) = std::fs::File::create(temp_path) {
+        let _ = writeln!(f, "{text}");
+    }
+}
+
+fn install_panic_hook() {
+    std::panic::set_hook(Box::new(|info| {
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            (*s).to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Bilinmeyen panic".to_string()
+        };
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "konum bilinmiyor".to_string());
+        let bt = std::backtrace::Backtrace::force_capture();
+        let msg = format!("Ozan kritik hata (panic):
+
+Konum: {location}
+Mesaj: {payload}
+
+Backtrace:
+{bt}");
+        eprintln!("{msg}");
+        log_fatal("ozan-panic.log", &msg);
+        let short_msg = format!("Ozan beklenmeyen bir hatayla karşılaştı:
+
+Konum: {location}
+Mesaj: {payload}");
+        show_error_dialog("Ozan - Kritik Hata", &short_msg);
+    }));
+}
 
 /// Ana pencereyi gösterir; tepsiye küçültülürken yok edildiyse yeniden oluşturur.
 /// (Pencere kapatıldığında WebView yok edilir; böylece arka planda RAM tüketimi
@@ -44,12 +107,19 @@ pub fn show_main_window(app: &AppHandle) {
         None => builder.build(),
     };
     if let Err(e) = built {
-        log::error!("Pencere oluşturulamadı: {e}");
+        let msg = format!("Ozan ana penceresi oluşturulamadı:
+
+{e}");
+        log::error!("{msg}");
+        log_fatal("ozan-startup-error.log", &msg);
+        show_error_dialog("Ozan - Pencere Hatası", &msg);
     }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    install_panic_hook();
+
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| show_main_window(app)))
         .setup(|app| {
@@ -122,24 +192,12 @@ pub fn run() {
     let app = match app {
         Ok(a) => a,
         Err(e) => {
-            let msg = format!("Ozan başlatılamadı:\n\n{e}");
+            let msg = format!("Ozan başlatılamadı:
+
+{e}");
             eprintln!("{msg}");
-            #[cfg(windows)]
-            {
-                let wm: Vec<u16> = msg.encode_utf16().chain(std::iter::once(0)).collect();
-                let wt: Vec<u16> = "Ozan - Başlatma Hatası"
-                    .encode_utf16()
-                    .chain(std::iter::once(0))
-                    .collect();
-                unsafe {
-                    windows_sys::Win32::UI::WindowsAndMessaging::MessageBoxW(
-                        std::ptr::null_mut(),
-                        wm.as_ptr(),
-                        wt.as_ptr(),
-                        0x10,
-                    );
-                }
-            }
+            log_fatal("ozan-startup-error.log", &msg);
+            show_error_dialog("Ozan - Başlatma Hatası", &msg);
             std::process::exit(1);
         }
     };
